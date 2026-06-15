@@ -6,7 +6,13 @@
 import json
 import urllib.request
 import sys
+import os
 from datetime import datetime, timezone, timedelta
+
+# Windows 终端 UTF-8 兼容
+if sys.platform == "win32":
+    sys.stdout = open(sys.stdout.fileno(), mode="w", encoding="utf-8", buffering=1)
+    sys.stderr = open(sys.stderr.fileno(), mode="w", encoding="utf-8", buffering=1)
 
 BASE = "https://aihot.joeplab.cn"
 
@@ -133,7 +139,6 @@ def main():
     # 同时输出到文件
     now = datetime.now(timezone(timedelta(hours=8)))
     filename = f"digest/{now.strftime('%Y-%m-%d')}.md"
-    import os
     os.makedirs("digest", exist_ok=True)
     with open(filename, "w", encoding="utf-8") as f:
         f.write(md)
