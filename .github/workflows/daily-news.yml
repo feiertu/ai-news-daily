@@ -1,0 +1,80 @@
+name: 📰 Daily AI News Digest
+
+on:
+  schedule:
+    # 每天北京时间 08:57 (UTC 00:57) — 错峰避免整点拥堵
+    - cron: "57 0 * * *"
+  workflow_dispatch:  # 支持手动触发
+    inputs:
+      create_issue:
+        description: '是否创建 GitHub Issue 推送'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write    # 提交 digest 文件
+  issues: write      # 创建 Issue 通知
+
+jobs:
+  fetch-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout 仓库
+        uses: actions/checkout@v4
+
+      - name: 🐍 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 🔍 抓取 AI 资讯
+        run: python scripts/fetch_news.py
+
+      - name: 📄 读取生成的日报
+        id: read_digest
+        run: |
+          DIGEST_FILE=$(ls digest/$(date +%Y-%m-%d).md 2>/dev/null || echo "")
+          if [ -n "$DIGEST_FILE" ]; then
+            echo "file=$DIGEST_FILE" >> $GITHUB_OUTPUT
+            echo "has_digest=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_digest=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 📝 提交日报到仓库
+        if: steps.read_digest.outputs.has_digest == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add digest/
+          git commit -m "📰 $(date +%Y-%m-%d) AI 资讯日报" || echo "没有新内容"
+          git push
+
+      - name: 🚀 创建 GitHub Issue 推送
+        if: steps.read_digest.outputs.has_digest == 'true' && (github.event_name == 'schedule' || github.event.inputs.create_issue == 'true')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DIGEST_FILE="${{ steps.read_digest.outputs.file }}"
+          TITLE="📰 AI 资讯日报 — $(date +%Y-%m-%d)"
+
+          # 检查是否已存在同名 Issue
+          EXISTING=$(gh issue list --state open --search "$TITLE" --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING" ]; then
+            echo "Issue #$EXISTING 已存在，跳过创建"
+          else
+            gh issue create \
+              --title "$TITLE" \
+              --body "$(cat $DIGEST_FILE)" \
+              --label "daily-digest" \
+              --label "automated"
+            echo "✅ Issue 已创建"
+          fi
+
+      - name: ⚠️ 无数据通知
+        if: steps.read_digest.outputs.has_digest != 'true'
+        run: |
+          echo "今日无24小时内资讯，跳过发布。"
