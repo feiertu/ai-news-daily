@@ -68,7 +68,7 @@ jobs:
           else
             gh issue create \
               --title "$TITLE" \
-              --body "$(cat $DIGEST_FILE)" \
+              --body-file "$DIGEST_FILE" \
               --label "daily-digest" \
               --label "automated"
             echo "✅ Issue 已创建"
