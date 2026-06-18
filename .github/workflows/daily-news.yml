@@ -60,6 +60,14 @@ jobs:
           DIGEST_FILE="${{ steps.read_digest.outputs.file }}"
           TITLE="📰 AI 资讯日报 — $(date +%Y-%m-%d)"
 
+          # 确保 labels 存在（不存在则创建）
+          for label in "daily-digest" "automated"; do
+            if ! gh label view "$label" &>/dev/null; then
+              echo "创建 label: $label"
+              gh label create "$label" --color "0366d6" 2>/dev/null || echo "  ⚠️ 创建 label $label 失败，继续..."
+            fi
+          done
+
           # 检查是否已存在同名 Issue
           EXISTING=$(gh issue list --state open --search "$TITLE" --json number --jq '.[0].number' 2>/dev/null || echo "")
 
